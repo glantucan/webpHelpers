@@ -1,0 +1,118 @@
+name: Build macOS App
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:  # Allows manual triggering
+
+jobs:
+  build-macos:
+    runs-on: macos-14  # Uses macOS 14 (Sonoma) with Apple Silicon
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python 3.10
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+        
+    - name: Install Dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pyinstaller
+        pip install customtkinter
+        
+    - name: Download WebP Tools
+      run: |
+        WEBP_VERSION="1.5.0"
+        curl -L "https://storage.googleapis.com/downloads.webmproject.org/releases/webp/libwebp-${WEBP_VERSION}-mac-arm64.tar.gz" -o webp.tar.gz
+        tar xzf webp.tar.gz
+        mkdir -p webp-tools
+        cp libwebp-${WEBP_VERSION}-mac-arm64/bin/* webp-tools/
+        chmod +x webp-tools/*
+        
+    - name: Create Spec File
+      run: |
+        cat > img2webp-GUI.spec << 'EOL'
+        # -*- mode: python ; coding: utf-8 -*-
+
+        block_cipher = None
+
+        a = Analysis(
+            ['img2webp-GUI.py'],
+            pathex=[],
+            binaries=[
+                ('webp-tools/img2webp', 'webp-tools'),
+                ('webp-tools/cwebp', 'webp-tools'),
+                ('webp-tools/dwebp', 'webp-tools')
+            ],
+            datas=[],
+            hiddenimports=['customtkinter'],
+            hookspath=[],
+            hooksconfig={},
+            runtime_hooks=[],
+            excludes=[],
+            win_no_prefer_redirects=False,
+            win_private_assemblies=False,
+            cipher=block_cipher,
+            noarchive=False,
+        )
+
+        pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
+
+        exe = EXE(
+            pyz,
+            a.scripts,
+            [],
+            exclude_binaries=True,
+            name='Img2WebPGUI',
+            debug=False,
+            bootloader_ignore_signals=False,
+            strip=False,
+            upx=True,
+            console=False,
+            disable_windowed_traceback=False,
+            argv_emulation=True,
+            target_arch='arm64',
+        )
+
+        coll = COLLECT(
+            exe,
+            a.binaries,
+            a.zipfiles,
+            a.datas,
+            strip=False,
+            upx=True,
+            upx_exclude=[],
+            name='Img2WebPGUI',
+        )
+
+        app = BUNDLE(
+            coll,
+            name='Img2WebPGUI.app',
+            icon=None,
+            bundle_identifier='com.img2webp.gui',
+            info_plist={
+                'LSEnvironment': {
+                    'PATH': '@executable_path/webp-tools:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin'
+                },
+            },
+        )
+        EOL
+        
+    - name: Build Application
+      run: pyinstaller img2webp-GUI.spec
+        
+    - name: Create ZIP Archive
+      run: |
+        cd dist
+        zip -r Img2WebPGUI.zip Img2WebPGUI.app
+        
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: Img2WebPGUI-macOS
+        path: dist/Img2WebPGUI.zip
