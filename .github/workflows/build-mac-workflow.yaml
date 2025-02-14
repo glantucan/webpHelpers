@@ -33,6 +33,9 @@ jobs:
         mkdir -p webp-tools
         cp libwebp-${WEBP_VERSION}-mac-arm64/bin/* webp-tools/
         chmod +x webp-tools/*
+        # Verify the files are executable
+        ls -la webp-tools/
+        ./webp-tools/img2webp -version || true
         
     - name: Create Spec File
       run: |

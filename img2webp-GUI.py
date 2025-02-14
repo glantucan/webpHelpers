@@ -2,10 +2,31 @@ import customtkinter as ctk
 import tkinter as tk
 from tkinter import filedialog
 import os
+import sys
 import subprocess
 from pathlib import Path
 import glob
 import json
+
+
+def get_webp_tools_path():
+    """Get the path to the webp-tools directory"""
+    if getattr(sys, 'frozen', False):
+        # Running in a bundle
+        bundle_dir = os.path.dirname(sys._MEIPASS)
+        return os.path.join(bundle_dir, 'webp-tools')
+    else:
+        # Running in normal Python environment
+        return 'webp-tools'
+
+
+def get_img2webp_path():
+    """Get the full path to img2webp executable"""
+    tools_path = get_webp_tools_path()
+    if sys.platform == 'darwin':  # macOS
+        return os.path.join(tools_path, 'img2webp')
+    else:  # Linux/Windows
+        return 'img2webp'  # Assume it's in PATH
 
 
 class Img2WebpGUI(ctk.CTk):
@@ -320,7 +341,7 @@ class Img2WebpGUI(ctk.CTk):
 
     def update_command(self, *args):
         try:
-            cmd = ["img2webp", "-v"]
+            cmd = [get_img2webp_path(), "-v"]  # Use the full path to img2webp
 
             # File level options
             if self.min_size.get():
@@ -420,7 +441,8 @@ class Img2WebpGUI(ctk.CTk):
                                      if '*' in part or '?' in part)
 
             # Get the base command and the output parts
-            base_cmd = cmd_parts[:input_pattern_idx]
+            # Replace 'img2webp' with full path
+            base_cmd = [get_img2webp_path()] + cmd_parts[1:input_pattern_idx]
             output_parts = cmd_parts[input_pattern_idx + 1:]
 
             # Expand the glob pattern
@@ -437,6 +459,11 @@ class Img2WebpGUI(ctk.CTk):
 
             self.output_text.insert(
                 tk.END, f"Expanded command:\n{' '.join(final_cmd)}\n\n")
+
+            # Create output directory if it doesn't exist
+            output_dir = os.path.dirname(output_parts[-1])
+            if output_dir and not os.path.exists(output_dir):
+                os.makedirs(output_dir)
 
             self.current_process = subprocess.Popen(
                 final_cmd,
